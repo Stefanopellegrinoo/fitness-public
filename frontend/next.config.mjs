@@ -27,7 +27,9 @@ const nextConfig = {
     return [
       {
         source: '/backend-api/:path*',
-        destination: 'http://127.0.0.1:4002/api/:path*' // proxy to Backend using IPv4
+        // BACKEND_ORIGIN points at the deployed API (e.g. https://api.example.com);
+        // unset, it targets the local dev backend over IPv4.
+        destination: `${process.env.BACKEND_ORIGIN ?? 'http://127.0.0.1:4002'}/api/:path*`
       }
     ]
   },

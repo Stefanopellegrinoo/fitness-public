@@ -27,6 +27,11 @@ import statsRoutes from './routes/stats.routes';
 
 const app = express();
 
+// Behind a reverse proxy (Caddy/nginx on the VPS, or Vercel's rewrite proxy).
+// Without this, express-rate-limit rejects requests carrying X-Forwarded-For,
+// and req.ip buckets every user under the proxy's address.
+app.set('trust proxy', 1);
+
 // CORS Configuration - Hardcoded for reliability during debugging
 const allowedOrigins = ['http://localhost:3003', 'http://localhost:3001', 'http://localhost:4000'];
 const envOrigins = (env.CORS_ORIGIN || '').split(',').map(o => o.trim()).filter(Boolean);
