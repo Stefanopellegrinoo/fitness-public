@@ -1,0 +1,357 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  password        String
+  name            String?
+  currentWeightKg Float?
+  heightCm        Float?
+  birthDate       DateTime?
+  activityLevel   ActivityLevel @default(MODERATE)
+  goal            Goal          @default(MAINTENANCE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  bodyMetrics       BodyMetrics[]
+  workoutSessions   WorkoutSession[]
+  nutritionEntries  NutritionEntry[]
+  routines          Routine[]
+  nutritionGoal     NutritionGoal?
+  pushSubscriptions PushSubscription[]
+  foodFavorites     FoodFavorite[]
+  recipes           Recipe[]
+}
+
+model BodyMetrics {
+  id           String @id @default(uuid())
+  weightKg     Float?
+  muscleMassKg Float?
+  fatMassKg    Float?
+
+  // Medidas corporales (opcionales)
+  chestCm      Float?
+  waistCm      Float?
+  hipCm        Float?
+  leftArmCm    Float?
+  rightArmCm   Float?
+  leftThighCm  Float?
+  rightThighCm Float?
+  leftCalfCm   Float?
+  rightCalfCm  Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+}
+
+// Catálogo de ejercicios (persistido en DB, seedeado con ejercicios comunes)
+model Exercise {
+  id             String                   @id @default(uuid())
+  name           String                   @unique
+  category       ExerciseCategory
+  primaryMuscles String[]
+  equipment      Equipment                @default(BARBELL)
+  isCompound     Boolean                  @default(false)
+  description    String?
+  sets           WorkoutSet[]
+  routineItems   RoutineExercise[]
+  sessions       WorkoutSessionExercise[]
+}
+
+model Routine {
+  id        String            @id @default(uuid())
+  name      String
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercises RoutineExercise[]
+  days      RoutineDay[]
+  sessions  WorkoutSession[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model RoutineExercise {
+  id          String           @id @default(uuid())
+  routineId   String // legacy FK — dual-written until phase-6 contract migration
+  routine     Routine          @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  dayId       String? // nullable during backfill; contract migration makes it required
+  day         RoutineDay?      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  exerciseId  String
+  exercise    Exercise         @relation(fields: [exerciseId], references: [id])
+  order       Int
+  restSeconds Int?
+  notes       String?
+  setPlans    RoutineSetPlan[]
+  targetSets  Int              @default(3) // legacy — dropped in phase 6
+  targetReps  String           @default("8-12") // legacy — dropped in phase 6
+  targetRpe   Float? // legacy — dropped in phase 6
+  dayOfWeek   DayOfWeek? // legacy — dropped in phase 6
+
+  @@index([dayId])
+}
+
+model RoutineDay {
+  id        String            @id @default(uuid())
+  routineId String
+  routine   Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  name      String
+  order     Int
+  weekday   DayOfWeek?
+  exercises RoutineExercise[]
+  sessions  WorkoutSession[]
+
+  @@unique([routineId, order])
+}
+
+model RoutineSetPlan {
+  id                String          @id @default(uuid())
+  routineExerciseId String
+  routineExercise   RoutineExercise @relation(fields: [routineExerciseId], references: [id], onDelete: Cascade)
+  order             Int
+  setType           SetType         @default(WORKING)
+  repsMin           Int?
+  repsMax           Int?
+  targetRpe         Float?
+  targetRir         Int?
+  percentOfTopSet   Float?
+  targetWeightKg    Float?
+  restSeconds       Int?
+
+  @@unique([routineExerciseId, order])
+}
+
+model WorkoutSession {
+  id           String                   @id @default(uuid())
+  userId       String
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routineId    String?
+  routine      Routine?                 @relation(fields: [routineId], references: [id])
+  routineDayId String?
+  routineDay   RoutineDay?              @relation(fields: [routineDayId], references: [id], onDelete: SetNull)
+  notes        String?
+  startedAt    DateTime                 @default(now())
+  finishedAt   DateTime?
+  sets         WorkoutSet[]
+  exercises    WorkoutSessionExercise[]
+
+  @@index([userId, startedAt])
+  @@index([routineDayId])
+}
+
+model WorkoutSessionExercise {
+  id         String         @id @default(uuid())
+  sessionId  String
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id])
+  order      Int            @default(0)
+
+  // Metadata copied from RoutineExercise
+  targetSets   Int?
+  targetReps   String?
+  targetRpe    Float?
+  planSnapshot Json?
+
+  @@unique([sessionId, exerciseId])
+}
+
+model WorkoutSet {
+  id             String         @id @default(uuid())
+  sessionId      String
+  session        WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId     String
+  exercise       Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber      Int
+  weightKg       Float
+  reps           Int
+  rpe            Float?
+  targetWeightKg Float? // OpenClaw agent writes the target weight here
+  isWarmup       Boolean        @default(false)
+  setType        SetType        @default(WORKING)
+  createdAt      DateTime       @default(now())
+
+  @@unique([sessionId, exerciseId, setNumber])
+}
+
+model FoodItem {
+  id                String             @id @default(uuid())
+  name              String
+  brand             String?
+  barcode           String?            @unique
+  caloriesPer100g   Float?
+  proteinPer100g    Float?
+  carbsPer100g      Float?
+  fatPer100g        Float?
+  servingName       String?            @default("100g")
+  isGramBased       Boolean            @default(true)
+  source            FoodSource         @default(MANUAL)
+  externalId        String?            @unique
+  createdAt         DateTime           @default(now())
+  entries           NutritionEntry[]
+  favorites         FoodFavorite[]
+  recipeIngredients RecipeIngredient[]
+
+  @@index([name])
+  @@index([source])
+}
+
+model Recipe {
+  id          String             @id @default(uuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  servings    Int                @default(1) // the recipe yields N servings
+  ingredients RecipeIngredient[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model RecipeIngredient {
+  id         String   @id @default(uuid())
+  recipeId   String
+  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  foodItemId String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Restrict)
+  grams      Float
+
+  @@index([recipeId])
+}
+
+model FoodFavorite {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodItemId String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, foodItemId])
+  @@index([userId])
+}
+
+model NutritionEntry {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodItemId   String?
+  foodItem     FoodItem?    @relation(fields: [foodItemId], references: [id])
+  foodName     String // nombre denormalizado para mostrar sin JOIN
+  grams        Float
+  mealCategory MealCategory
+  calories     Float?
+  protein      Float?
+  carbs        Float?
+  fat          Float?
+  status       EntryStatus  @default(COMPLETED)
+  date         DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+
+  @@index([userId, date])
+}
+
+model NutritionGoal {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kcal         Float
+  proteinG     Float
+  carbsG       Float
+  fatG         Float
+  isCalculated Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+  VERY_ACTIVE
+}
+
+enum Goal {
+  BULK
+  CUT
+  MAINTENANCE
+}
+
+enum ExerciseCategory {
+  PECHO
+  ESPALDA
+  HOMBROS
+  BRAZOS
+  PIERNAS
+  CORE
+  CARDIO
+}
+
+enum Equipment {
+  BARBELL
+  DUMBBELL
+  MACHINE
+  CABLE
+  BODYWEIGHT
+}
+
+enum DayOfWeek {
+  LUNES
+  MARTES
+  MIERCOLES
+  JUEVES
+  VIERNES
+  SABADO
+  DOMINGO
+}
+
+enum SetType {
+  WARMUP
+  WORKING
+  TOP
+  BACKOFF
+  DROP
+  MYOREP
+  RESTPAUSE
+  AMRAP
+}
+
+enum MealCategory {
+  Desayuno
+  Almuerzo
+  Merienda
+  Cena
+  Snacks
+}
+
+enum FoodSource {
+  MANUAL
+  GENERIC
+  OPEN_FOOD_FACTS
+  FATSECRET
+}
+
+enum EntryStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}

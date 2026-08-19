@@ -1,0 +1,36 @@
+{
+  // Type-check-only project. It exists because `tsconfig.json` is the BUILD
+  // config (`npm run build` is a bare `tsc`, which emits to ./dist), so the
+  // exclusion of the test globs over there is load-bearing: dropping it would
+  // ship the whole suite inside dist/.
+  //
+  // This project sets `noEmit`, so it can include everything the build leaves
+  // out: the tests, the one-off scripts and the Prisma seed. Vitest does NOT
+  // type-check, so without this command a test can reference a field that does
+  // not exist, pass at runtime because the value is `undefined`, and nothing
+  // ever complains.
+  //
+  // Run it with `npm run typecheck:tests`. See section 7 of
+  // docs/superpowers/workout-start-race-STATUS.md.
+  //
+  // NOTE: line comments only. A block comment holding a glob like the test
+  // pattern closes itself early on the `*` + `/` inside it, and tsc parses the
+  // wreckage WITHOUT complaining -- it just silently builds another config.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The build pins `rootDir` to ./src because that is what shapes ./dist.
+    // Here nothing is emitted, and src/__tests__/import-off-foods.test.ts
+    // imports from ../../scripts/, so the root has to be the package.
+    "rootDir": "."
+  },
+  "include": [
+    "src/**/*",
+    "scripts/**/*",
+    "prisma/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

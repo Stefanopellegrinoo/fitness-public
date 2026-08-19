@@ -1,0 +1,160 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Warm-tinted OLED dark "gym plate" theme - always dark mode */
+:root {
+  --background: #0B0A08;
+  --foreground: #F3F0E9;
+  --card: #151310;
+  --card-foreground: #F3F0E9;
+  --popover: #17150F;
+  --popover-foreground: #F3F0E9;
+  --primary: #F76B15;
+  --primary-foreground: #180D04;
+  --secondary: #1E1B17;
+  --secondary-foreground: #F3F0E9;
+  --muted: #1A1815;
+  --muted-foreground: #A6A093;
+  --accent: #241E17;
+  --accent-foreground: #F3F0E9;
+  --destructive: #EF4444;
+  --destructive-foreground: #F3F0E9;
+  --success: #22C55E;
+  --success-foreground: #06130A;
+  --border: rgba(243, 240, 233, 0.08);
+  --input: rgba(243, 240, 233, 0.10);
+  --ring: #F76B15;
+  --chart-1: #F76B15;
+  --chart-2: #E4D3AE;
+  --chart-3: #22C55E;
+  --chart-4: #8A857B;
+  --chart-5: #60A5FA;
+  --radius: 0.75rem;
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), monospace;
+  --font-display: var(--font-barlow), var(--font-geist), sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* iOS-optimized styles */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in inputs */
+input, textarea {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+/* Safe area for iPhone notch/home indicator */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+
+.safe-area-top {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 1.5rem);
+}
+
+.pb-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem);
+}
+
+/* These utilities are unlayered, so they beat Tailwind's pt and pb utilities.
+   env() is 0 on non-notch devices, which was collapsing the top padding to 0;
+   give them a real base padding. Desktop values match pt-8 and pb-8. */
+@media (min-width: 1024px) {
+  .safe-area-top {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 2rem);
+  }
+  .pb-nav {
+    padding-bottom: 2rem;
+  }
+}
+
+.tabular-nums-data {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smooth scrolling */
+.scroll-smooth {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* iOS-style momentum scrolling */
+.momentum-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}

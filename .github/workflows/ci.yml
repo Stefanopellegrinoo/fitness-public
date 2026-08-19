@@ -1,0 +1,125 @@
+# Runs the suite on every pull request, because until now nothing did.
+#
+# PRs #51 and #52 both reported `mergeable: CLEAN` with `checks: 0` — that
+# "clean" is about merge conflicts, not about whether the code works. 1293 tests
+# existed and only ran when someone remembered to run them by hand.
+#
+# The services below are not decoration: MEASURED, with `REDIS_URL` unset the
+# three redis/rate-limit suites fail to load at all, and the backend tests talk
+# to a real Postgres. This mirrors the environment where the 863 pass.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A second push to the same PR makes the first run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+
+    services:
+      # 16 matches the local server the suite is developed against.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fitness_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fitness_test
+      REDIS_URL: redis://localhost:6379
+      # Throwaway CI values. The schema demands 16+ chars, and these never leave
+      # the runner — they are not secrets, they are fixtures.
+      JWT_SECRET: ci-only-jwt-secret-not-a-real-one
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-not-a-real-one
+
+    defaults:
+      run:
+        working-directory: backend/app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/app/package-lock.json
+
+      - run: npm ci
+
+      # MEASURED: the suite passes against a database with nothing but the
+      # migrations applied — no seed needed. Every test builds the rows it needs.
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      # This repo has been bitten by day-boundary bugs twice, and both times the
+      # suite was green in the developer's zone. Chatham is UTC+12:45 — a
+      # non-whole-hour offset on the far side of the date line, which is where
+      # "today" assumptions come apart.
+      - name: Tests under a hostile timezone
+        run: npm test
+        env:
+          TZ: Pacific/Chatham
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # `npx vitest run`, not `npm test`: this package's test script is bare
+      # `vitest`, which is WATCH mode. Vitest happens to switch to a single run
+      # when it sees CI=true, but a suite that hangs forever if that heuristic
+      # ever changes is not something to lean on.
+      - name: Tests
+        run: npx vitest run
+
+      - name: Tests under a hostile timezone
+        run: npx vitest run
+        env:
+          TZ: Pacific/Chatham

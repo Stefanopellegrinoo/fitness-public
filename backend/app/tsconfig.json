@@ -1,0 +1,76 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "ES2020",
+    "lib": ["ES2020"],
+
+    /* Modules */
+    "module": "commonjs",
+    "rootDir": "./src",
+    "moduleResolution": "node",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": false,
+
+    /* Emit */
+    "outDir": "./dist",
+    "removeComments": true,
+    "importHelpers": false,
+    "downlevelIteration": true,
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    /* Interop Constraints */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Type Checking */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+
+    /* Completeness */
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  // This is the BUILD project: `npm run build` is a bare `tsc` and emits to
+  // ./dist, so excluding the tests here is load-bearing -- including them
+  // would ship the suite. Tests get type-checked by tsconfig.test.json
+  // (`npm run typecheck:tests`), which sets noEmit.
+  //
+  // The .js twins are not paranoia: `allowJs` is on and the include glob
+  // covers every extension under src, so a stray compiled test sitting next
+  // to its source joins the build. Measured on 2026-07-29 -- a misparsed
+  // type-check config emitted src/__tests__ JS and the next `npm run build`
+  // went from 200 emitted files to 372 without a single warning.
+  //
+  // Line comments on purpose: a block comment holding a glob closes itself
+  // early on the asterisk-slash inside it, and tsc parses the wreckage
+  // WITHOUT complaining -- it just silently builds another config.
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/*.spec.js",
+    "**/*.test.js"
+  ]
+}
