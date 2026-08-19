@@ -1,0 +1,97 @@
+# Deploys the backend to the VPS on every push to main, after the full CI
+# suite (backend + frontend, both timezones) passes.
+#
+# Until the VPS_* secrets exist the deploy job skips cleanly (green, no-op),
+# so this workflow can live on main before the server is provisioned.
+# Setup steps and required secrets: docs/deploy.md.
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys queue instead of cancelling: an interrupted rsync/restart is worse
+# than a stale one.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deploy configuration
+        id: cfg
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          if [ -n "$VPS_HOST" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "VPS secrets not set — skipping deploy (see docs/deploy.md)."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.cfg.outputs.configured == 'true'
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/app/package-lock.json
+
+      - name: Build
+        if: steps.cfg.outputs.configured == 'true'
+        working-directory: backend/app
+        run: |
+          npm ci
+          npx prisma generate
+          npm run build
+
+      - name: Set up SSH
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ship artifacts
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        working-directory: backend/app
+        # Only these paths are synced, so the server-side .env and node_modules
+        # survive every deploy. --delete keeps dist/ and prisma/ exact mirrors.
+        run: |
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
+            dist prisma package.json package-lock.json \
+            "$VPS_USER@$VPS_HOST:/opt/fitness-api/app/"
+
+      - name: Install, migrate, restart
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" '
+            set -euo pipefail
+            cd /opt/fitness-api/app
+            npm ci --omit=dev
+            npx prisma migrate deploy
+            npx prisma generate
+            sudo /usr/bin/systemctl restart fitness-api
+            sleep 3
+            curl -fsS http://127.0.0.1:4002/health
+          '

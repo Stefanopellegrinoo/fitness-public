@@ -54,6 +54,11 @@ El CI (GitHub Actions) corre ambas suites con typecheck, y repite los tests bajo
 
 Convención del repo: ningún cambio de comportamiento sin un test que falle primero, y las afirmaciones de rendimiento o de contrato en los comentarios van acompañadas de la medición que las respalda.
 
+## Deploy
+
+Vercel para el frontend y un VPS para la API, con CI/CD por GitHub Actions.
+Arquitectura, preparación del server y secrets: [docs/deploy.md](docs/deploy.md).
+
 ## Diseño
 
 La dirección visual, tokens, tipografía y reglas de contribución de UI están en
