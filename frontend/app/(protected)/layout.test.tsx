@@ -11,7 +11,7 @@
  * NOTE: Ported from jest.mock/jest.fn to vi.mock/vi.fn (this project uses
  * Vitest, not Jest) and updated to the current layout contract:
  * - Loading copy is "Cargando tu perfil..." (Spanish), not "Loading your profile..."
- * - Redirect target is '/login', not '/auth/login' (matches middleware.ts)
+ * - Redirect target is '/login', not '/auth/login' (matches proxy.ts)
  * - Authenticated content is wrapped in <AppShell>, which renders BottomNav
  *   in addition to children — assertions target the children text, which
  *   AppShell still renders regardless of that extra chrome.
