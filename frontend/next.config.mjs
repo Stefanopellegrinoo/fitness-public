@@ -9,10 +9,12 @@ const nextConfig = {
   // lockfiles/package.json higher up the tree (e.g. ~/package.json). Without
   // this, multiple lockfiles make Next resolve modules like `tailwindcss` from
   // the wrong directory -> "Can't resolve 'tailwindcss'".
-  outputFileTracingRoot: __dirname,
-  turbopack: {
-    root: __dirname,
-  },
+  // Local-only: on Vercel (monorepo Root Directory) the pin makes @vercel/next
+  // re-root .next against the repo clone and the deploy dies at "Deploying
+  // outputs..." with ENOENT on .next/routes-manifest-deterministic.json.
+  ...(process.env.VERCEL
+    ? {}
+    : { outputFileTracingRoot: __dirname, turbopack: { root: __dirname } }),
   // Hosts allowed to load dev-server resources (HMR, /_next/*) from an origin
   // other than localhost. Needed to open the dev server through an HTTPS tunnel,
   // which the barcode scanner requires: getUserMedia only works on a secure origin.
