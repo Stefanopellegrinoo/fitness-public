@@ -1,24 +1,15 @@
 /**
- * Middleware Tests
- * Tests for Next.js request-level authentication protection
- * Verifies that:
+ * Proxy tests (Next.js request-level auth protection).
  * - Protected routes require auth_token in cookies
- * - Missing token redirects to /login with redirect parameter
- * - Valid token allows request to proceed
- *
- * NOTE: Route patterns and cookie name updated to match middleware.ts's
- * 2026-04-08 fixes:
- * - FIX #1: cookie name corrected from 'accessToken' -> 'auth_token'
- * - FIX #2: matchers corrected — route groups like app/(protected)/workout
- *   do NOT include the group name in the URL, so the matcher (and every
- *   protected path) is '/workout/:path*', not '/app/workout/:path*'.
+ * - Missing token redirects to /login with a redirect parameter
+ * - Present token allows the request to proceed
  */
 
 import { describe, it, expect } from 'vitest';
-import { middleware, config } from '@/middleware';
+import { proxy, config } from '@/proxy';
 import { NextRequest, NextResponse } from 'next/server';
 
-describe('middleware', () => {
+describe('proxy', () => {
   describe('config.matcher', () => {
     it('should match protected route patterns', () => {
       const patterns = config.matcher;
@@ -30,7 +21,7 @@ describe('middleware', () => {
     });
   });
 
-  describe('middleware(request)', () => {
+  describe('proxy(request)', () => {
     /**
      * Helper: Create a mock NextRequest
      */
@@ -53,7 +44,7 @@ describe('middleware', () => {
 
     it('should redirect to /login when auth_token is missing', () => {
       const request = createRequest('/workout');
-      const response = middleware(request);
+      const response = proxy(request);
 
       expect(response).toBeInstanceOf(NextResponse);
       expect(response?.status).toBe(307); // Redirect status
@@ -63,7 +54,7 @@ describe('middleware', () => {
 
     it('should include redirect parameter pointing to original pathname', () => {
       const request = createRequest('/profile/edit');
-      const response = middleware(request);
+      const response = proxy(request);
 
       const location = response?.headers.get('location') || '';
       expect(location).toContain('redirect=%2Fprofile%2Fedit');
@@ -73,7 +64,7 @@ describe('middleware', () => {
       const request = createRequest('/workout', {
         cookies: { auth_token: 'valid-token-abc123' },
       });
-      const response = middleware(request);
+      const response = proxy(request);
 
       expect(response).toBeInstanceOf(NextResponse);
       expect(response?.status).toBe(200); // NextResponse.next() returns 200
@@ -94,7 +85,7 @@ describe('middleware', () => {
         const request = createRequest(route, {
           cookies: { auth_token: 'test-token' },
         });
-        const response = middleware(request);
+        const response = proxy(request);
         expect(response?.status).toBe(200);
       });
     });
@@ -103,7 +94,7 @@ describe('middleware', () => {
       const request = createRequest('/workout', {
         cookies: { auth_token: '' },
       });
-      const response = middleware(request);
+      const response = proxy(request);
 
       expect(response?.status).not.toBe(200);
       expect(response?.headers.get('location')).toContain('/login');
@@ -112,7 +103,7 @@ describe('middleware', () => {
     it('should redirect if auth_token cookie is missing entirely', () => {
       // Simulate a request where the cookie was never set / already expired and removed
       const request = createRequest('/nutrition');
-      const response = middleware(request);
+      const response = proxy(request);
 
       expect(response?.headers.get('location')).toContain('/login');
     });
