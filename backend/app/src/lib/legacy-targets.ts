@@ -1,8 +1,8 @@
 // Legacy dual-write: derives the flat RoutineExercise/WorkoutSessionExercise target columns
-// (targetSets/targetReps/targetRpe — dropped in phase 6) from the nested setPlans, so consumers
+// (targetSets/targetReps/targetRpe — slated for removal) from the nested setPlans, so consumers
 // still reading legacy fields (e.g. today's frontend, startWorkout's snapshot) stay coherent.
 //
-// Semantics (pinned by Task 8's routines-nested.test.ts — do not change without updating those tests):
+// Semantics (pinned by routines-nested.test.ts — do not change without updating those tests):
 //   - WARMUP set plans are excluded from targetSets/targetReps/targetRpe derivation.
 //   - targetSets = count of non-WARMUP ("working") plans.
 //   - targetReps is taken from the first working plan (by `order`): collapsed to a single

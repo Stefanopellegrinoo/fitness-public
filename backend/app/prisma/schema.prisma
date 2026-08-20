@@ -91,10 +91,10 @@ model RoutineExercise {
   restSeconds Int?
   notes       String?
   setPlans    RoutineSetPlan[]
-  targetSets  Int              @default(3) // legacy — dropped in phase 6
-  targetReps  String           @default("8-12") // legacy — dropped in phase 6
-  targetRpe   Float? // legacy — dropped in phase 6
-  dayOfWeek   DayOfWeek? // legacy — dropped in phase 6
+  targetSets  Int              @default(3) // legacy — slated for removal
+  targetReps  String           @default("8-12") // legacy — slated for removal
+  targetRpe   Float? // legacy — slated for removal
+  dayOfWeek   DayOfWeek? // legacy — slated for removal
 
   @@index([dayId])
 }

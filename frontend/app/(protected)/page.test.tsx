@@ -176,8 +176,8 @@ describe('dashboard "Calorías Hoy" card vs. macros card — one clock (spec R6)
     // `dashboardService.getSummary` is auto-mocked to a bare `vi.fn()` at the
     // top of this file, same as every other test here — a static
     // `mockResolvedValue` can never see what URL the real implementation
-    // built, so it could never go RED->GREEN on task 3.2's change (adding
-    // `tz` to the query string). Wiring the REAL implementation back in via
+    // built, so it could never go RED->GREEN on the change adding
+    // `tz` to the query string. Wiring the REAL implementation back in via
     // `importActual`, and controlling only the network underneath it
     // (`apiClient`), is the one seam that actually exercises that code path.
     const real = await vi.importActual<typeof import('@/lib/api/dashboard.service')>(

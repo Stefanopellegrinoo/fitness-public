@@ -143,7 +143,7 @@ describe('DashboardService.getSummary', () => {
         });
     });
 
-    // user-timezone-day-boundaries, task 2.1. The `where` reaching Prisma is
+    // The `where` reaching Prisma is
     // asserted with LITERAL ISO instants, never by calling
     // dayWindowInZone/isoWeekWindowInZone here -- deriving the expectation from
     // the function under test would let a bug like ending the window at

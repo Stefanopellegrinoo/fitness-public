@@ -32,7 +32,7 @@ const DEV_INSECURE_KEY = 'dev-only-insecure-key';
  * @throws Error con mensaje descriptivo si la validación falla
  */
 function validateProductionEnvironment(): void {
-  console.log('🔍 Validando entorno de producción...');
+  console.log('Validando entorno de producción...');
 
   try {
     // Parsear variables de entorno
@@ -40,7 +40,7 @@ function validateProductionEnvironment(): void {
     
     // Verificar que estamos en producción
     if (env.NODE_ENV !== 'production') {
-      console.warn('⚠️  NODE_ENV no es "production". Script diseñado para validación en producción.');
+      console.warn('NODE_ENV no es "production". Script diseñado para validación en producción.');
       console.warn(`   Valor actual: ${env.NODE_ENV}`);
     }
     
@@ -49,7 +49,7 @@ function validateProductionEnvironment(): void {
       // 1. JWT_SECRET no debe ser el valor por defecto de desarrollo
       if (env.JWT_SECRET === DEV_INSECURE_KEY) {
         throw new Error(
-          '❌ JWT_SECRET está usando el valor por defecto inseguro de desarrollo en producción.\n' +
+          'JWT_SECRET está usando el valor por defecto inseguro de desarrollo en producción.\n' +
           '   Esto es una vulnerabilidad de seguridad grave.\n' +
           '   Configura una clave segura de al menos 32 caracteres.'
         );
@@ -58,7 +58,7 @@ function validateProductionEnvironment(): void {
       // 2. JWT_SECRET debe tener al menos 32 caracteres
       if (env.JWT_SECRET.length < 32) {
         throw new Error(
-          `❌ JWT_SECRET es demasiado corto para producción.\n` +
+          `JWT_SECRET es demasiado corto para producción.\n` +
           `   Longitud actual: ${env.JWT_SECRET.length} caracteres (mínimo requerido: 32).\n` +
           `   Genera una clave segura con: openssl rand -base64 48`
         );
@@ -66,33 +66,33 @@ function validateProductionEnvironment(): void {
       
       // 3. DATABASE_URL debe estar presente
       if (!env.DATABASE_URL || env.DATABASE_URL.trim() === '') {
-        throw new Error('❌ DATABASE_URL no está configurado en producción.');
+        throw new Error('DATABASE_URL no está configurado en producción.');
       }
       
       // 4. Validar que DATABASE_URL no sea una URL de desarrollo local
       if (env.DATABASE_URL.includes('localhost') || env.DATABASE_URL.includes('127.0.0.1')) {
-        console.warn('⚠️  DATABASE_URL apunta a localhost. Asegúrate que esto es intencional para producción.');
+        console.warn('DATABASE_URL apunta a localhost. Asegúrate que esto es intencional para producción.');
       }
       
-      console.log('✅ Entorno de producción validado correctamente');
+      console.log('Entorno de producción validado correctamente');
       console.log(`   NODE_ENV: ${env.NODE_ENV}`);
       console.log(`   JWT_SECRET length: ${env.JWT_SECRET.length} caracteres`);
       console.log(`   DATABASE_URL: ${env.DATABASE_URL.split('@')[0]}@... (URL ofuscada por seguridad)`);
       console.log(`   PORT: ${env.PORT}`);
       console.log(`   CORS_ORIGIN: ${env.CORS_ORIGIN}`);
     } else {
-      console.log(`✅ Entorno de ${env.NODE_ENV} validado (no se aplican restricciones de producción)`);
-      console.log(`   JWT_SECRET: ${env.JWT_SECRET.length < 32 ? '⚠️ Demasiado corto para producción' : '✅ Longitud adecuada'}`);
+      console.log(`Entorno de ${env.NODE_ENV} validado (no se aplican restricciones de producción)`);
+      console.log(`   JWT_SECRET: ${env.JWT_SECRET.length < 32 ? 'Demasiado corto para producción' : 'Longitud adecuada'}`);
     }
     
   } catch (error) {
     if (error instanceof z.ZodError) {
       // Errores de validación Zod
-      console.error('❌ Error de validación de variables de entorno:');
+      console.error('Error de validación de variables de entorno:');
       error.errors.forEach((err, index) => {
         console.error(`   ${index + 1}. ${err.path.join('.')}: ${err.message}`);
       });
-      console.error('\n📋 Variables de entorno requeridas para producción:');
+      console.error('\nVariables de entorno requeridas para producción:');
       console.error('   - NODE_ENV=production');
       console.error('   - JWT_SECRET=<clave segura de al menos 32 caracteres>');
       console.error('   - DATABASE_URL=<url de base de datos>');
@@ -103,7 +103,7 @@ function validateProductionEnvironment(): void {
       process.exit(1);
     } else {
       // Error desconocido
-      console.error('❌ Error desconocido durante la validación:', error);
+      console.error('Error desconocido durante la validación:', error);
       process.exit(1);
     }
   }
@@ -113,7 +113,7 @@ function validateProductionEnvironment(): void {
  * Validar entorno de desarrollo (menos estricto)
  */
 function validateDevelopmentEnvironment(): void {
-  console.log('🔍 Validando entorno de desarrollo...');
+  console.log('Validando entorno de desarrollo...');
   
   try {
     const EnvSchema = z.object({
@@ -124,13 +124,13 @@ function validateDevelopmentEnvironment(): void {
     
     const env = EnvSchema.parse(process.env);
     
-    console.log('✅ Entorno de desarrollo validado');
+    console.log('Entorno de desarrollo validado');
     console.log(`   NODE_ENV: ${env.NODE_ENV}`);
-    console.log(`   JWT_SECRET: ${env.JWT_SECRET === DEV_INSECURE_KEY ? '⚠️ Usando valor por defecto' : '✅ Configurado'}`);
-    console.log(`   DATABASE_URL: ${env.DATABASE_URL ? '✅ Configurado' : '⚠️ No configurado'}`);
+    console.log(`   JWT_SECRET: ${env.JWT_SECRET === DEV_INSECURE_KEY ? 'Usando valor por defecto' : 'Configurado'}`);
+    console.log(`   DATABASE_URL: ${env.DATABASE_URL ? 'Configurado' : 'No configurado'}`);
     
   } catch (error) {
-    console.error('❌ Error validando entorno de desarrollo:', error);
+    console.error('Error validando entorno de desarrollo:', error);
     process.exit(1);
   }
 }
@@ -149,7 +149,7 @@ function main(): void {
     validateDevelopmentEnvironment();
   }
   
-  console.log('\n✅ Validación completada exitosamente');
+  console.log('\nValidación completada exitosamente');
   process.exit(0);
 }
 
