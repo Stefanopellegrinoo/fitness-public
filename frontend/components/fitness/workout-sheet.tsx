@@ -35,11 +35,10 @@ export function WorkoutSheet({ routine, onClose, onStartWorkout }: WorkoutSheetP
   useEffect(() => {
     if (!routineId || !hasDays) return
 
-    // Which day comes next is anchored on the last session that logged a set,
-    // and that history lives on the server -- the client knows the days but
-    // never what was trained. This used to be computed here from the weekday
-    // alone, which offered the FIRST day whenever none matched today, however
-    // many times that day had just been trained.
+    // The server answers with today's anchored day when the routine has one,
+    // and otherwise falls back to the rotation -- the day after the last
+    // session that logged a set. That history lives on the server: the client
+    // knows the days but never what was trained.
     let current = true
     setSuggested(null)
 

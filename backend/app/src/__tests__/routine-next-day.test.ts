@@ -110,6 +110,28 @@ describe('suggestNextRoutineDay', () => {
     expect((await suggestNextRoutineDay(userId, anchorRoutine.id, NOT_ANCHOR))!.id).toBe(a1.id);
   });
 
+  it('prefers the day anchored to the given weekday over the rotation', async () => {
+    const todayRoutine = await prisma.routine.create({ data: { name: 'NextDay Today', userId } });
+    await prisma.routineDay.create({ data: { routineId: todayRoutine.id, name: 'C1', order: 1 } });
+    const c2 = await prisma.routineDay.create({
+      data: { routineId: todayRoutine.id, name: 'C2', order: 2, weekday: ANCHOR }
+    });
+    const c3 = await prisma.routineDay.create({ data: { routineId: todayRoutine.id, name: 'C3', order: 3 } });
+
+    // Train the anchored day so the rotation alone would answer c3.
+    const session = await prisma.workoutSession.create({
+      data: { userId, routineId: todayRoutine.id, routineDayId: c2.id, startedAt: new Date(), finishedAt: new Date() }
+    });
+    await prisma.workoutSet.create({
+      data: { sessionId: session.id, exerciseId, setNumber: 1, weightKg: 60, reps: 8 }
+    });
+
+    // Today's plan beats the rotation...
+    expect((await suggestNextRoutineDay(userId, todayRoutine.id, ANCHOR))!.id).toBe(c2.id);
+    // ...and the rotation still answers when no day is anchored to the weekday.
+    expect((await suggestNextRoutineDay(userId, todayRoutine.id, NOT_ANCHOR))!.id).toBe(c3.id);
+  });
+
   it('falls back to the first day when no day matches the given weekday', async () => {
     const fallbackRoutine = await prisma.routine.create({ data: { name: 'NextDay Fallback', userId } });
 

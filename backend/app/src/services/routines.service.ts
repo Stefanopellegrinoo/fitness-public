@@ -15,6 +15,12 @@ export async function suggestNextRoutineDay(userId: string, routineId: string, t
     });
     if (days.length === 0) return null;
 
+    // A day anchored to the caller's current weekday wins outright: the start
+    // button offers today's plan, whatever the rotation says. The rotation only
+    // decides for days without a weekday anchor (or when today has none).
+    const todaysDay = days.find((day) => day.weekday === today);
+    if (todaysDay) return todaysDay;
+
     // A session with zero sets holds no training data, so it cannot anchor the
     // rotation: otherwise starting a workout and logging nothing advances the routine
     // and the next real workout serves the day AFTER the one that was never trained.
@@ -29,5 +35,5 @@ export async function suggestNextRoutineDay(userId: string, routineId: string, t
         if (lastIndex >= 0) return days[(lastIndex + 1) % days.length];
     }
 
-    return days.find((day) => day.weekday === today) ?? days[0];
+    return days[0];
 }
