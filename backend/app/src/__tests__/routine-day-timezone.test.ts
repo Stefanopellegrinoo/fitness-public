@@ -85,10 +85,10 @@ describe('routine day-of-week resolution -- caller zone, not process clock', () 
   });
 
   /**
-   * A routine with NO session history -- the only state in which the weekday
-   * branch of `suggestNextRoutineDay` is reachable at all. `first` carries no
-   * weekday and is order 1, so it is also the no-match fallback: any assertion
-   * that lands on `east`/`west` proves a weekday actually matched.
+   * A routine with NO session history, so the rotation cannot answer and every
+   * result is the weekday branch or the fallback. `first` carries no weekday
+   * and is order 1, so it is also the no-match fallback: any assertion that
+   * lands on `east`/`west` proves a weekday actually matched.
    */
   async function seedRoutine() {
     const routine = await prisma.routine.create({ data: { name: 'TZ Rotation', userId } });
