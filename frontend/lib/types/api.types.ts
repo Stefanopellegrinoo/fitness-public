@@ -132,7 +132,7 @@ export interface WorkoutSessionExercise {
   targetRpe?: number | null;
 }
 
-// Legacy flat exercise row — still returned by GET dual-write until backend phase 6.
+// Legacy flat exercise row — still returned by the GET dual-write.
 export interface RoutineExercise {
   id?: string;
   routineId?: string;

@@ -23,7 +23,7 @@ export const ROUTINE_INCLUDE = {
             },
         },
     },
-    // Legacy flat list — kept until the frontend migrates (phase 4), dropped in phase 6
+    // Legacy flat list — kept until the frontend fully migrates to setPlans
     exercises: {
         include: { exercise: true },
         orderBy: { order: 'asc' as const },

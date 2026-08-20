@@ -24,7 +24,7 @@ export type ExEntry = {
 }
 
 // Categorical taxonomy colors per muscle group — intentionally distinct from
-// the primary/brand palette (kept as-is in the Phase 1 redesign).
+// the primary/brand palette (kept as-is in the redesign).
 const muscleGroupColors: Record<string, string> = {
   PECHO: "bg-red-900/30 text-red-400",
   ESPALDA: "bg-blue-900/30 text-blue-400",

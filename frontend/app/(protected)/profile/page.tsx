@@ -274,7 +274,7 @@ export default function ProfilePage() {
                   "bg-success/20 text-success border border-success/30 hover:bg-destructive/20 hover:text-destructive hover:border-destructive/30"
               )}
             >
-              {!isPushSupported ? "No Soportado" : isSubscribing ? "Configurando..." : isSubscribed ? "Habilitadas ✅ (Toca para desactivar)" : "Activar en este dispositivo"}
+              {!isPushSupported ? "No Soportado" : isSubscribing ? "Configurando..." : isSubscribed ? "Habilitadas (tocá para desactivar)" : "Activar en este dispositivo"}
             </Button>
           )}
         </div>

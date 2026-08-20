@@ -413,7 +413,7 @@ async function createSessionWithPlan(
           exerciseId: re.exerciseId,
           order: re.order,
           planSnapshot: snapshot,
-          // Derived legacy dual-write: current frontend renders these until phase 5
+          // Derived legacy dual-write: the current frontend still renders these
           ...computeLegacyExerciseFields(re.setPlans),
         },
       });
