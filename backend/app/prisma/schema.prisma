@@ -1,5 +1,8 @@
 generator client {
   provider = "prisma-client-js"
+  // native keeps local dev/CI; the musl target is for the alpine image, whose
+  // autodetection otherwise picks the OpenSSL 1.1 engine alpine no longer ships
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

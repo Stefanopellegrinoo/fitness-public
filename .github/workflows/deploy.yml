@@ -1,8 +1,10 @@
 # Deploys the backend to the VPS on every push to main, after the full CI
 # suite (backend + frontend, both timezones) passes.
 #
-# Until the VPS_* secrets exist the deploy job skips cleanly (green, no-op),
-# so this workflow can live on main before the server is provisioned.
+# The image is built HERE and pushed to GHCR; the VPS only pulls and restarts
+# (same pattern as warren-portfolio — the box never builds). Until the VPS_*
+# secrets exist the deploy job skips cleanly (green, no-op), so this workflow
+# can live on main before the server is provisioned.
 # Setup steps and required secrets: docs/deploy.md.
 name: Deploy backend
 
@@ -11,7 +13,7 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Deploys queue instead of cancelling: an interrupted rsync/restart is worse
+# Deploys queue instead of cancelling: an interrupted migrate/restart is worse
 # than a stale one.
 concurrency:
   group: deploy-${{ github.ref }}
@@ -21,8 +23,36 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  deploy:
+  image:
     needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      # The default `docker` driver cannot export cache (`cache-to: type=gha`
+      # fails); setup-buildx creates a `docker-container` builder, which can.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend/app
+          push: true
+          # Lowercase literal, NOT ${{ github.repository_owner }}: the owner is
+          # `Stefanopellegrinoo` and GHCR rejects uppercase in image names.
+          tags: |
+            ghcr.io/stefanopellegrinoo/fitness-api:latest
+            ghcr.io/stefanopellegrinoo/fitness-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
     runs-on: ubuntu-latest
     steps:
       - name: Check deploy configuration
@@ -40,21 +70,6 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.cfg.outputs.configured == 'true'
 
-      - uses: actions/setup-node@v4
-        if: steps.cfg.outputs.configured == 'true'
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: backend/app/package-lock.json
-
-      - name: Build
-        if: steps.cfg.outputs.configured == 'true'
-        working-directory: backend/app
-        run: |
-          npm ci
-          npx prisma generate
-          npm run build
-
       - name: Set up SSH
         if: steps.cfg.outputs.configured == 'true'
         env:
@@ -66,32 +81,33 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Ship artifacts
+      - name: Sync compose file
         if: steps.cfg.outputs.configured == 'true'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
-        working-directory: backend/app
-        # Only these paths are synced, so the server-side .env and node_modules
-        # survive every deploy. --delete keeps dist/ and prisma/ exact mirrors.
         run: |
-          rsync -az --delete -e "ssh -i ~/.ssh/deploy_key" \
-            dist prisma package.json package-lock.json \
-            "$VPS_USER@$VPS_HOST:/opt/fitness-api/app/"
+          scp -i ~/.ssh/deploy_key deploy/docker-compose.yml \
+            "$VPS_USER@$VPS_HOST:/opt/fitness-api/docker-compose.yml"
 
-      - name: Install, migrate, restart
+      - name: Pull, migrate, restart
         if: steps.cfg.outputs.configured == 'true'
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
+          SHA: ${{ github.sha }}
         run: |
-          ssh -i ~/.ssh/deploy_key "$VPS_USER@$VPS_HOST" '
+          ssh -n -i ~/.ssh/deploy_key -o BatchMode=yes "$VPS_USER@$VPS_HOST" "
             set -euo pipefail
-            cd /opt/fitness-api/app
-            npm ci --omit=dev
-            npx prisma migrate deploy
-            npx prisma generate
-            sudo /usr/bin/systemctl restart fitness-api
+            cd /opt/fitness-api
+            # Deploy the exact sha the suite just passed on, not whatever
+            # 'latest' means by the time the pull runs.
+            export FITNESS_IMAGE=ghcr.io/stefanopellegrinoo/fitness-api:$SHA
+            docker compose pull -q api
+            # run (not up) so migrations finish before the api starts serving;
+            # compose brings postgres up healthy first via depends_on.
+            docker compose run --rm api npx prisma migrate deploy
+            docker compose up -d --remove-orphans
             sleep 3
             curl -fsS http://127.0.0.1:4002/health
-          '
+          "
