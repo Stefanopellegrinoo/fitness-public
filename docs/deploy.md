@@ -5,49 +5,47 @@
 - **Frontend**: Vercel. El browser solo habla con el dominio de Vercel; Next
   proxya `/backend-api/*` hacia la API (`rewrites` en `next.config.mjs`), así
   que las cookies HttpOnly son first-party y no hay CORS en el browser.
-- **Backend**: VPS (Oracle) con Node 24, PostgreSQL 16 y Redis, detrás de un
-  reverse proxy con TLS (Caddy). La API escucha en `127.0.0.1:4002`.
+- **Backend**: VPS con Docker. Un stack de Compose propio (`api` + `postgres` +
+  `redis`) que convive con los otros proyectos del box, cada uno con su stack y
+  sus datos aislados. La API publica `127.0.0.1:4002` — solo el reverse proxy
+  del host la alcanza.
 - **CI/CD**: cada push a `main` corre la suite completa (backend + frontend,
-  en la zona local del runner y bajo `TZ=Pacific/Chatham`) y, si pasa,
-  `deploy.yml` compila en Actions, sube los artefactos por rsync y reinicia el
-  servicio. Hasta que los secrets `VPS_*` no existan, el job de deploy se
-  saltea en verde — se puede mergear el pipeline antes de tener el server.
+  en la zona del runner y bajo `TZ=Pacific/Chatham`) y, si pasa, `deploy.yml`
+  **construye la imagen en Actions**, la sube a GHCR
+  (`ghcr.io/stefanopellegrinoo/fitness-api`) y el VPS solo hace pull, migra y
+  reinicia. El box nunca buildea. Hasta que los secrets `VPS_*` no existan, el
+  job de deploy se saltea en verde.
 
 ## Preparación del VPS (una sola vez)
 
-Requiere un dominio apuntando al VPS (Vercel tiene que llegar por HTTPS).
+Requiere Docker con Compose v2 (ya está) y un dominio para la API.
 
 ```bash
-# Usuario de deploy y directorio de la app
-sudo useradd -m -s /bin/bash deploy
-sudo mkdir -p /opt/fitness-api/app
-sudo chown -R deploy:deploy /opt/fitness-api
+# Directorio del stack y su .env
+sudo mkdir -p /opt/fitness-api
+sudo chown "$USER" /opt/fitness-api
+cat > /opt/fitness-api/.env <<'EOF'
+POSTGRES_USER=fitness
+POSTGRES_PASSWORD=<openssl rand -base64 24>
+JWT_SECRET=<openssl rand -base64 32>
+JWT_REFRESH_SECRET=<openssl rand -base64 32, distinto>
+CORS_ORIGIN=https://<tu-app>.vercel.app
+EOF
+chmod 600 /opt/fitness-api/.env
 
-# Node 24, PostgreSQL 16, Redis, Caddy (según la distro del VPS)
-# Postgres: crear base `fitness` y un usuario propio con password fuerte.
-
-# Variables de entorno del servicio (usar backend/app/.env.example como guía)
-sudo -u deploy nano /opt/fitness-api/app/.env
-#   NODE_ENV=production
-#   PORT=4002
-#   DATABASE_URL=postgresql://...
-#   JWT_SECRET / JWT_REFRESH_SECRET  (openssl rand -base64 32, distintos)
-#   REDIS_URL=redis://localhost:6379
-#   CORS_ORIGIN=https://<tu-app>.vercel.app
-
-# Servicio systemd
-sudo cp deploy/fitness-api.service /etc/systemd/system/
-sudo systemctl daemon-reload && sudo systemctl enable fitness-api
-
-# El pipeline reinicia el servicio sin password:
-echo 'deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart fitness-api' | sudo tee /etc/sudoers.d/fitness-deploy
+# Login de Docker a GHCR (la imagen es privada): un PAT classic con read:packages
+docker login ghcr.io -u Stefanopellegrinoo
 
 # Clave SSH exclusiva para deploys (la privada va al secret VPS_SSH_KEY)
-sudo -u deploy ssh-keygen -t ed25519 -f /home/deploy/.ssh/gha_deploy -N ''
-sudo -u deploy sh -c 'cat /home/deploy/.ssh/gha_deploy.pub >> /home/deploy/.ssh/authorized_keys'
+ssh-keygen -t ed25519 -f ~/.ssh/gha_fitness -N ''
+cat ~/.ssh/gha_fitness.pub >> ~/.ssh/authorized_keys
 ```
 
-Caddy, mínimo (`/etc/caddy/Caddyfile`):
+El primer deploy (o un `workflow_dispatch`) copia `deploy/docker-compose.yml`
+a `/opt/fitness-api/` y levanta todo; los datos quedan en el volumen
+`fitness_pg_data`.
+
+Reverse proxy del host (Caddy, mínimo):
 
 ```
 api.tudominio.com {
@@ -55,13 +53,21 @@ api.tudominio.com {
 }
 ```
 
+Si el ingreso es por Cloudflare Tunnel en vez de Caddy, apuntar el hostname
+del túnel a `http://localhost:4002`.
+
+**Firewall (OCI)**: abrir 80/443 en la Security List **y** en el host. Ojo:
+los puertos que Docker publica en `0.0.0.0` se saltean el firewall del host —
+por eso el compose de fitness publica la API solo en `127.0.0.1` y no publica
+Postgres ni Redis en absoluto.
+
 ## Secrets en GitHub (Settings → Secrets and variables → Actions)
 
 | Secret | Valor |
 |---|---|
 | `VPS_HOST` | IP o dominio del VPS |
-| `VPS_USER` | `deploy` |
-| `VPS_SSH_KEY` | contenido de `/home/deploy/.ssh/gha_deploy` (la privada) |
+| `VPS_USER` | el usuario dueño de `/opt/fitness-api` |
+| `VPS_SSH_KEY` | contenido de `~/.ssh/gha_fitness` (la privada) |
 
 ## Vercel
 
@@ -72,15 +78,23 @@ api.tudominio.com {
 ## Qué hace cada deploy
 
 1. Suite completa como gate (reusa `ci.yml`).
-2. `npm ci` + `prisma generate` + `tsc` en el runner.
-3. `rsync` de `dist/`, `prisma/`, `package.json` y `package-lock.json` a
-   `/opt/fitness-api/app/` — el `.env` y `node_modules` del server no se tocan.
-4. En el server: `npm ci --omit=dev`, `prisma migrate deploy`,
-   `systemctl restart fitness-api` y chequeo de `/health`.
+2. Buildea la imagen (`backend/app/Dockerfile`) en Actions y la pushea a GHCR
+   con dos tags: `latest` y el SHA del commit.
+3. Copia `deploy/docker-compose.yml` al VPS.
+4. En el VPS, **pineado al SHA que la suite acaba de aprobar**:
+   `docker compose pull` → `docker compose run --rm api npx prisma migrate
+   deploy` → `docker compose up -d` → chequeo de `/health`.
 
 ## Rollback
 
-Los artefactos no se versionan en el server: para volver atrás, re-correr el
-deploy desde el commit anterior (workflow_dispatch sobre ese SHA o revert +
-push). Las migraciones de Prisma no se revierten solas — si una migración es
-el problema, escribir la migración inversa y deployar.
+Cada commit deja su imagen taggeada por SHA en GHCR. Para volver atrás:
+re-correr el deploy desde el commit anterior (workflow_dispatch sobre ese SHA
+o revert + push), o a mano en el VPS:
+
+```bash
+cd /opt/fitness-api
+FITNESS_IMAGE=ghcr.io/stefanopellegrinoo/fitness-api:<sha-anterior> docker compose up -d api
+```
+
+Las migraciones de Prisma no se revierten solas — si una migración es el
+problema, escribir la migración inversa y deployar.

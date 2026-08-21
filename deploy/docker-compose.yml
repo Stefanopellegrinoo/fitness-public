@@ -1,0 +1,68 @@
+# Server-side stack: lives at /opt/fitness-api/docker-compose.yml on the VPS,
+# next to a .env holding POSTGRES_USER, POSTGRES_PASSWORD, JWT_SECRET,
+# JWT_REFRESH_SECRET and CORS_ORIGIN. The deploy workflow keeps this file in
+# sync and swaps the api image; data lives in the pg_data volume.
+name: fitness
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    # No ports: on purpose — only the api reaches it, over the internal
+    # network. Publishing 5432 on a public box bypasses the host firewall
+    # (Docker inserts its own rules ahead of it).
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: fitness
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d fitness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Cache and rate-limit counters only, nothing that must survive a restart:
+    # persistence off (no AOF/RDB churn) and LRU eviction under a small cap.
+    # Deliberately unlike warren-portfolio's redis, whose noeviction guards
+    # BullMQ schedules.
+    command: redis-server --save "" --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    # The deploy pins FITNESS_IMAGE to the exact sha the suite passed on;
+    # `latest` is only the fallback for a manual `docker compose up`.
+    image: ${FITNESS_IMAGE:-ghcr.io/stefanopellegrinoo/fitness-api:latest}
+    restart: unless-stopped
+    # 127.0.0.1 binding: only the host's reverse proxy (Caddy/cloudflared)
+    # reaches the api. 0.0.0.0 would publish it to the internet past the
+    # firewall.
+    ports:
+      - "127.0.0.1:4002:4002"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/fitness
+      REDIS_URL: redis://redis:6379
+      PORT: "4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4002/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  pg_data:
