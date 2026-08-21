@@ -107,7 +107,9 @@ jobs:
             # run (not up) so migrations finish before the api starts serving;
             # compose brings postgres up healthy first via depends_on.
             docker compose run --rm api npx prisma migrate deploy
-            docker compose up -d --remove-orphans
-            sleep 3
+            # --wait blocks until the compose healthchecks pass (or fails the
+            # job if they never do). MEASURED: a fixed sleep raced the app's
+            # boot on the VPS and declared a healthy stack dead.
+            docker compose up -d --remove-orphans --wait
             curl -fsS http://127.0.0.1:4002/health
           "
